@@ -5,7 +5,7 @@ and specific suggestions to improve the resume.
 
 ## Tech Stack
 - **Frontend:** Angular 18, PrimeNG, SCSS
-- **Backend:** ASP.NET Core 8 Web API, EF Core
+- **Backend:** ASP.NET Core 10 Web API, EF Core
 - **Database:** PostgreSQL
 - **AI:** Claude API (Anthropic)
 - **DevOps:** Docker, Render, Vercel
