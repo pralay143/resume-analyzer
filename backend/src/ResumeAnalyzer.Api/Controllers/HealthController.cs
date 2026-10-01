@@ -1,11 +1,22 @@
 using Microsoft.AspNetCore.Mvc;
+using ResumeAnalyzer.Api.Data;
 
 namespace ResumeAnalyzer.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class HealthController : ControllerBase
+public class HealthController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
-    public IActionResult Get() => Ok(new { status = "ok", timestamp = DateTimeOffset.UtcNow });
+    public async Task<IActionResult> Get(CancellationToken cancellationToken)
+    {
+        var canConnect = await db.Database.CanConnectAsync(cancellationToken);
+
+        return Ok(new
+        {
+            status = "ok",
+            timestamp = DateTimeOffset.UtcNow,
+            database = new { canConnect }
+        });
+    }
 }
