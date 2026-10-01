@@ -1,0 +1,33 @@
+# ===== Secrets (never commit) =====
+.env
+.env.*
+!.env.example
+appsettings.Development.json
+appsettings.*.local.json
+*.pfx
+
+# ===== .NET =====
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+*.log
+
+# ===== Angular / Node =====
+node_modules/
+dist/
+.angular/
+coverage/
+npm-debug.log*
+
+# ===== Editors / OS =====
+.idea/
+.DS_Store
+Thumbs.db
+
+# ===== Uploads (never commit resumes) =====
+uploads/
+*.pdf
+!docs/**/*.pdf
