@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ResumeAnalyzer.Api.Data;
+using ResumeAnalyzer.Api.Middleware;
+using ResumeAnalyzer.Api.Services;
 using Scalar.AspNetCore;
 
 const string FrontendCorsPolicy = "Frontend";
@@ -27,11 +29,16 @@ builder.Services.AddCors(options =>
             .AllowAnyMethod());
 });
 
+builder.Services.AddSingleton<IResumeParser, PdfResumeParser>();
+
+builder.Services.AddProblemDetails();
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
