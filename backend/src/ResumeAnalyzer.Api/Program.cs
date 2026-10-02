@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ResumeAnalyzer.Api.Data;
 using ResumeAnalyzer.Api.Middleware;
 using ResumeAnalyzer.Api.Services;
+using ResumeAnalyzer.Api.Services.Ai;
 using Scalar.AspNetCore;
 
 const string FrontendCorsPolicy = "Frontend";
@@ -30,6 +31,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddSingleton<IResumeParser, PdfResumeParser>();
+builder.Services.AddClaudeAnalysis();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddControllers();
