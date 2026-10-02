@@ -197,15 +197,97 @@ public class GeminiAnalysisServiceTests
         Assert.Contains("credentials", ex.Message);
     }
 
-    private IAiAnalysisService CreateService()
+    [Fact]
+    public async Task AnalyzeAsync_PrimaryOverloaded_FallsBackAndStoresAnsweringModel()
     {
-        var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Gemini:ApiKey"] = "test-gemini-key",
-                ["Gemini:Model"] = "gemini-test-model"
-            })
-            .Build();
+        EnqueueOverloaded(times: 4); // Primary: first attempt plus 3 retries.
+        _handler.Enqueue(HttpStatusCode.OK,
+            GeminiResponse(MinimalAnalysis().ToJsonString(), modelVersion: "gemini-fallback-a"));
+
+        var result = await CreateService(fallbackModels: ["gemini-fallback-a", "gemini-fallback-b"])
+            .AnalyzeAsync(ResumeText, JobDescription, CancellationToken.None);
+
+        Assert.Equal("gemini-fallback-a", result.Model);
+        Assert.Equal("Good match.", result.Summary);
+        Assert.Equal(
+            [.. Enumerable.Repeat("gemini-test-model", 4), "gemini-fallback-a"],
+            RequestedModels());
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_FallbackOverloaded_TriesNextFallbackOnceWithoutRetrying()
+    {
+        EnqueueOverloaded(times: 5); // Primary x4, then fallback-a once.
+        _handler.Enqueue(HttpStatusCode.OK, GeminiResponse(MinimalAnalysis().ToJsonString(), modelVersion: null));
+
+        var result = await CreateService(fallbackModels: ["gemini-fallback-a", "gemini-fallback-b"])
+            .AnalyzeAsync(ResumeText, JobDescription, CancellationToken.None);
+
+        // Without a modelVersion in the response, the requested model name is stored.
+        Assert.Equal("gemini-fallback-b", result.Model);
+        Assert.Equal(
+            [.. Enumerable.Repeat("gemini-test-model", 4), "gemini-fallback-a", "gemini-fallback-b"],
+            RequestedModels());
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_AllModelsOverloaded_ThrowsUnavailableMessage()
+    {
+        EnqueueOverloaded(times: 5);
+
+        var ex = await Assert.ThrowsAsync<AiAnalysisException>(() =>
+            CreateService(fallbackModels: ["gemini-fallback-a"])
+                .AnalyzeAsync(ResumeText, JobDescription, CancellationToken.None));
+
+        Assert.Contains("unavailable right now", ex.Message);
+        Assert.Equal(5, _handler.Requests.Count);
+    }
+
+    [Fact]
+    public async Task AnalyzeAsync_PrimaryRateLimited_DoesNotFallBack()
+    {
+        for (var i = 0; i < 4; i++)
+        {
+            _handler.Enqueue(HttpStatusCode.TooManyRequests, "{}", r => r.Headers.Add("retry-after", "0"));
+        }
+
+        var ex = await Assert.ThrowsAsync<AiAnalysisException>(() =>
+            CreateService(fallbackModels: ["gemini-fallback-a"])
+                .AnalyzeAsync(ResumeText, JobDescription, CancellationToken.None));
+
+        Assert.Contains("free AI quota", ex.Message);
+        Assert.All(RequestedModels(), model => Assert.Equal("gemini-test-model", model));
+    }
+
+    private void EnqueueOverloaded(int times)
+    {
+        const string overloaded = """
+            { "error": { "code": 503, "message": "The model is overloaded. Please try again later.", "status": "UNAVAILABLE" } }
+            """;
+        for (var i = 0; i < times; i++)
+        {
+            _handler.Enqueue(HttpStatusCode.ServiceUnavailable, overloaded, r => r.Headers.Add("retry-after", "0"));
+        }
+    }
+
+    // The model each request targeted, from ".../models/{model}:generateContent".
+    private List<string> RequestedModels() => _handler.Requests
+        .Select(r => r.Uri!.AbsolutePath.Split("/models/")[1].Split(':')[0])
+        .ToList();
+
+    private IAiAnalysisService CreateService(string[]? fallbackModels = null)
+    {
+        var settings = new Dictionary<string, string?>
+        {
+            ["Gemini:ApiKey"] = "test-gemini-key",
+            ["Gemini:Model"] = "gemini-test-model"
+        };
+        for (var i = 0; i < (fallbackModels?.Length ?? 0); i++)
+        {
+            settings[$"Gemini:FallbackModels:{i}"] = fallbackModels![i];
+        }
+
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
 
         var services = new ServiceCollection();
         services.AddSingleton<IConfiguration>(configuration);
@@ -215,7 +297,11 @@ public class GeminiAnalysisServiceTests
         return services.BuildServiceProvider().GetRequiredService<IAiAnalysisService>();
     }
 
-    private static string GeminiResponse(string firstPart, string? secondPart = null, string finishReason = "STOP")
+    private static string GeminiResponse(
+        string firstPart,
+        string? secondPart = null,
+        string finishReason = "STOP",
+        string? modelVersion = "gemini-3.8-flash-001")
     {
         var parts = new JsonArray(new JsonObject { ["text"] = firstPart });
         if (secondPart is not null)
@@ -237,7 +323,7 @@ public class GeminiAnalysisServiceTests
                 ["thoughtsTokenCount"] = 120,
                 ["totalTokenCount"] = 1270
             },
-            ["modelVersion"] = "gemini-3.8-flash-001"
+            ["modelVersion"] = modelVersion
         }.ToJsonString();
     }
 

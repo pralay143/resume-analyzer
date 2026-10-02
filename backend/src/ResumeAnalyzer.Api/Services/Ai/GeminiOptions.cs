@@ -15,6 +15,11 @@ public class GeminiOptions
     [Required(ErrorMessage = "Gemini:Model is missing.")]
     public string Model { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Models tried in order, once each, when the primary model is still overloaded (503) after its retries.
+    /// </summary>
+    public List<string> FallbackModels { get; set; } = [];
+
     /// <summary>Includes the model's thinking tokens, which Gemini counts against this limit.</summary>
     [Range(256, 65_536)]
     public int MaxOutputTokens { get; set; } = 8192;

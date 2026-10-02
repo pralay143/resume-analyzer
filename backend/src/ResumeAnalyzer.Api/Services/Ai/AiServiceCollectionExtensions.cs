@@ -11,6 +11,9 @@ public static class AiServiceCollectionExtensions
     private const string AnthropicVersion = "2023-06-01";
     private const string GeminiBaseUrl = "https://generativelanguage.googleapis.com/v1beta/";
 
+    /// <summary>Set on a request to give it a single attempt, e.g. a fallback model.</summary>
+    internal static readonly HttpRequestOptionsKey<bool> DisableRetriesOption = new("ResumeAnalyzer.DisableRetries");
+
     // 529 is Anthropic's "overloaded" status.
     private static readonly HashSet<int> ClaudeRetryableStatusCodes =
         [(int)HttpStatusCode.TooManyRequests, (int)HttpStatusCode.InternalServerError, 529];
@@ -111,10 +114,14 @@ public static class AiServiceCollectionExtensions
             // retried: waiting another 90 seconds is rarely worth it for an interactive request.
             resilience.Retry.ShouldHandle = args => ValueTask.FromResult(args.Outcome switch
             {
+                _ when RetriesDisabled(args.Context.GetRequestMessage()) => false,
                 { Exception: HttpRequestException } => true,
                 { Result: { } response } => retryableStatusCodes.Contains((int)response.StatusCode),
                 _ => false
             });
         });
     }
+
+    private static bool RetriesDisabled(HttpRequestMessage? request) =>
+        request?.Options.TryGetValue(DisableRetriesOption, out var disabled) == true && disabled;
 }

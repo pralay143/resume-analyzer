@@ -42,7 +42,7 @@ public class GeminiAnalysisService(
                     ? null
                     : new GeminiThinkingConfig(_options.ThinkingLevel)));
 
-        var response = await SendAsync(request, ct);
+        var (response, answeredBy) = await SendWithFallbackAsync(request, ct);
 
         var candidate = response.Candidates?.FirstOrDefault();
         if (candidate is null)
@@ -68,26 +68,74 @@ public class GeminiAnalysisService(
         }
 
         var input = ParseAnalysis(candidate);
-        var model = response.ModelVersion ?? _options.Model;
+        var model = response.ModelVersion ?? answeredBy;
         var inputTokens = response.UsageMetadata?.PromptTokenCount ?? 0;
         // Gemini bills thinking tokens as output, so they're included here.
         var outputTokens = (response.UsageMetadata?.CandidatesTokenCount ?? 0) + (response.UsageMetadata?.ThoughtsTokenCount ?? 0);
 
         logger.LogInformation(
-            "Gemini analysis completed with {Model}: {InputTokens} input tokens, {OutputTokens} output tokens",
-            model, inputTokens, outputTokens);
+            "Gemini analysis completed with {Model} (fallback: {IsFallback}): {InputTokens} input tokens, {OutputTokens} output tokens",
+            model, answeredBy != _options.Model, inputTokens, outputTokens);
 
         return AnalysisResultMapper.ToResult(input, model, inputTokens, outputTokens);
     }
 
-    private async Task<GenerateContentResponse> SendAsync(GenerateContentRequest request, CancellationToken ct)
+    // Tries the primary model (with retries), then each fallback model once, moving on only while the
+    // current model is overloaded (503). Any other failure is final.
+    private async Task<(GenerateContentResponse Response, string Model)> SendWithFallbackAsync(
+        GenerateContentRequest request, CancellationToken ct)
     {
-        var path = $"models/{Uri.EscapeDataString(_options.Model)}:generateContent";
+        var models = _options.FallbackModels
+            .Where(m => !string.IsNullOrWhiteSpace(m))
+            .Select(m => m.Trim())
+            .Prepend(_options.Model)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        for (var i = 0; ; i++)
+        {
+            var isFallback = i > 0;
+            try
+            {
+                var response = await SendAsync(models[i], request, allowRetries: !isFallback, ct);
+                if (isFallback)
+                {
+                    logger.LogWarning("Gemini fallback model {Model} answered after the primary model {PrimaryModel} was overloaded",
+                        models[i], _options.Model);
+                }
+
+                return (response, models[i]);
+            }
+            catch (ModelOverloadedException ex)
+            {
+                if (i == models.Count - 1)
+                {
+                    logger.LogWarning("Gemini model {Model} is overloaded (503) and no fallback models are left", models[i]);
+                    throw new AiAnalysisException(ex.Message, ex);
+                }
+
+                logger.LogWarning("Gemini model {Model} is overloaded (503); trying fallback model {FallbackModel}",
+                    models[i], models[i + 1]);
+            }
+        }
+    }
+
+    private async Task<GenerateContentResponse> SendAsync(
+        string model, GenerateContentRequest request, bool allowRetries, CancellationToken ct)
+    {
+        using var message = new HttpRequestMessage(HttpMethod.Post, $"models/{Uri.EscapeDataString(model)}:generateContent")
+        {
+            Content = JsonContent.Create(request, options: ApiJsonOptions)
+        };
+        if (!allowRetries)
+        {
+            message.Options.Set(AiServiceCollectionExtensions.DisableRetriesOption, true);
+        }
 
         HttpResponseMessage httpResponse;
         try
         {
-            httpResponse = await httpClient.PostAsJsonAsync(path, request, ApiJsonOptions, ct);
+            httpResponse = await httpClient.SendAsync(message, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
@@ -108,7 +156,12 @@ public class GeminiAnalysisService(
         {
             if (!httpResponse.IsSuccessStatusCode)
             {
-                var error = await ReadAndLogErrorAsync(httpResponse, ct);
+                var error = await ReadAndLogErrorAsync(model, httpResponse, ct);
+                if (httpResponse.StatusCode == HttpStatusCode.ServiceUnavailable)
+                {
+                    throw new ModelOverloadedException(GenericFailureMessage);
+                }
+
                 throw new AiAnalysisException(httpResponse.StatusCode switch
                 {
                     HttpStatusCode.TooManyRequests =>
@@ -136,7 +189,7 @@ public class GeminiAnalysisService(
     }
 
     // Logs the provider's error status and message only. Request content (resume, job description) is never logged.
-    private async Task<GeminiError?> ReadAndLogErrorAsync(HttpResponseMessage response, CancellationToken ct)
+    private async Task<GeminiError?> ReadAndLogErrorAsync(string model, HttpResponseMessage response, CancellationToken ct)
     {
         GeminiError? error = null;
         try
@@ -148,8 +201,8 @@ public class GeminiAnalysisService(
             // Not a JSON error body; the status code is still logged below.
         }
 
-        logger.LogWarning("Gemini API returned {StatusCode}: {ErrorStatus} {ErrorMessage}",
-            (int)response.StatusCode, error?.Status, error?.Message);
+        logger.LogWarning("Gemini API returned {StatusCode} for {Model}: {ErrorStatus} {ErrorMessage}",
+            (int)response.StatusCode, model, error?.Status, error?.Message);
         return error;
     }
 
@@ -176,4 +229,8 @@ public class GeminiAnalysisService(
             throw new AiAnalysisException("The AI returned an incomplete analysis. Please try again.", ex);
         }
     }
+
+    // A 503 from one model, so the next fallback can be tried. Never leaves this class: when no fallback is
+    // left it's rethrown as a plain AiAnalysisException.
+    private sealed class ModelOverloadedException(string message) : AiAnalysisException(message);
 }
