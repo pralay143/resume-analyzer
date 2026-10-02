@@ -43,6 +43,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+        builder.UseSetting("Gemini:ApiKey", "test-key-not-used");
         builder.UseSetting("Anthropic:ApiKey", "test-key-not-used");
         builder.UseSetting("RateLimiting:Analyses:PermitLimit", "10000");
 

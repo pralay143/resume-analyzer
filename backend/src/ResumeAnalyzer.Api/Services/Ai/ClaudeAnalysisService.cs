@@ -21,8 +21,6 @@ public class ClaudeAnalysisService(
         PropertyNameCaseInsensitive = true
     };
 
-    private static readonly JsonSerializerOptions ToolInputJsonOptions = new(JsonSerializerDefaults.Web);
-
     private readonly AnthropicOptions _options = options.Value;
 
     public async Task<AiAnalysisResult> AnalyzeAsync(string resumeText, string jobDescription, CancellationToken ct)
@@ -34,7 +32,7 @@ public class ClaudeAnalysisService(
             Model: _options.Model,
             MaxTokens: _options.MaxTokens,
             Temperature: 0,
-            System: AnalysisPrompt.System,
+            System: AnalysisPrompt.ClaudeSystem,
             Tools: [new ToolDefinition(AnalysisPrompt.ToolName, AnalysisPrompt.ToolDescription, AnalysisPrompt.ToolInputSchema)],
             ToolChoice: new ToolChoice("tool", AnalysisPrompt.ToolName),
             Messages: [new RequestMessage("user", AnalysisPrompt.BuildUserMessage(resumeText, jobDescription))]);
@@ -68,7 +66,7 @@ public class ClaudeAnalysisService(
             "Claude analysis completed with {Model}: {InputTokens} input tokens, {OutputTokens} output tokens",
             model, inputTokens, outputTokens);
 
-        return ToResult(input, model, inputTokens, outputTokens);
+        return AnalysisResultMapper.ToResult(input, model, inputTokens, outputTokens);
     }
 
     private async Task<MessagesResponse> SendAsync(MessagesRequest request, CancellationToken ct)
@@ -97,9 +95,11 @@ public class ClaudeAnalysisService(
         {
             if (!httpResponse.IsSuccessStatusCode)
             {
-                await LogErrorResponseAsync(httpResponse, ct);
+                var error = await ReadAndLogErrorAsync(httpResponse, ct);
                 throw new AiAnalysisException(httpResponse.StatusCode switch
                 {
+                    _ when error?.Message?.Contains("credit balance is too low", StringComparison.OrdinalIgnoreCase) == true =>
+                        "The AI service has no remaining credit.",
                     HttpStatusCode.TooManyRequests =>
                         "The AI service is receiving too many requests. Please wait a minute and try again.",
                     HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden =>
@@ -122,7 +122,7 @@ public class ClaudeAnalysisService(
     }
 
     // Logs the provider's error type and message only. Request content (resume, job description) is never logged.
-    private async Task LogErrorResponseAsync(HttpResponseMessage response, CancellationToken ct)
+    private async Task<ErrorDetail?> ReadAndLogErrorAsync(HttpResponseMessage response, CancellationToken ct)
     {
         ErrorDetail? error = null;
         try
@@ -136,70 +136,19 @@ public class ClaudeAnalysisService(
 
         logger.LogWarning("Claude API returned {StatusCode}: {ErrorType} {ErrorMessage}",
             (int)response.StatusCode, error?.Type, error?.Message);
+        return error;
     }
 
     private ReportAnalysisInput DeserializeToolInput(JsonElement input)
     {
         try
         {
-            if (input.ValueKind != JsonValueKind.Object)
-            {
-                throw new JsonException($"Tool input is {input.ValueKind}, expected an object.");
-            }
-
-            var parsed = input.Deserialize<ReportAnalysisInput>(ToolInputJsonOptions)
-                         ?? throw new JsonException("Tool input is null.");
-
-            if (string.IsNullOrWhiteSpace(parsed.Summary))
-            {
-                throw new JsonException("Tool input has no summary.");
-            }
-
-            return parsed;
+            return AnalysisResultMapper.Parse(input);
         }
         catch (JsonException ex)
         {
             logger.LogWarning("Claude {ToolName} input was malformed: {Reason}", AnalysisPrompt.ToolName, ex.Message);
             throw new AiAnalysisException("The AI returned an incomplete analysis. Please try again.", ex);
         }
-    }
-
-    private static AiAnalysisResult ToResult(ReportAnalysisInput input, string model, int inputTokens, int outputTokens)
-    {
-        var resumeSkills = DistinctByName(input.ResumeSkills, s => s?.Name)
-            .Select(s => new ResumeSkill(s.Name!.Trim(), Normalize(s.Category, AnalysisPrompt.SkillCategories, "other")))
-            .ToList();
-
-        var jobSkills = DistinctByName(input.JobSkills, s => s?.Name)
-            .Select(s => new JobSkill(s.Name!.Trim(), Normalize(s.Importance, AnalysisPrompt.SkillImportances, "required")))
-            .ToList();
-
-        return new AiAnalysisResult(
-            model,
-            inputTokens,
-            outputTokens,
-            resumeSkills,
-            jobSkills,
-            CleanList(input.MatchedSkills),
-            CleanList(input.MissingRequiredSkills),
-            CleanList(input.MissingPreferredSkills),
-            CleanList(input.Suggestions),
-            input.Summary!.Trim());
-    }
-
-    // Drops null entries and blank names, and keeps the first of any case-insensitive duplicates.
-    private static IEnumerable<T> DistinctByName<T>(IEnumerable<T?>? items, Func<T?, string?> name) where T : class =>
-        (items ?? [])
-            .Where(item => item is not null && !string.IsNullOrWhiteSpace(name(item)))
-            .DistinctBy(item => name(item)!.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(item => item!);
-
-    private static List<string> CleanList(IEnumerable<string?>? items) =>
-        DistinctByName(items, s => s).Select(s => s.Trim()).ToList();
-
-    private static string Normalize(string? value, string[] allowed, string fallback)
-    {
-        var normalized = value?.Trim().ToLowerInvariant();
-        return normalized is not null && allowed.Contains(normalized) ? normalized : fallback;
     }
 }

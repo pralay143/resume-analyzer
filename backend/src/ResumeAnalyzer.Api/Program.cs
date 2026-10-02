@@ -46,7 +46,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddSingleton<IResumeParser, PdfResumeParser>();
 builder.Services.AddSingleton<IMatchScoringService, MatchScoringService>();
 builder.Services.AddScoped<IAnalysisService, AnalysisService>();
-builder.Services.AddClaudeAnalysis();
+builder.Services.AddAiAnalysis(builder.Configuration);
 builder.Services.AddAnalysisRateLimiting();
 
 builder.Services.AddProblemDetails();

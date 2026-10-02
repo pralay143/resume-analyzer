@@ -16,10 +16,22 @@ internal static partial class AnalysisPrompt
 
     public static readonly string[] SkillImportances = ["required", "preferred"];
 
-    public const string System = """
+    public const string ClaudeSystem = """
         You are an expert technical recruiter. You compare a candidate's resume with a job description and report
         your analysis by calling the report_analysis tool.
 
+
+        """ + Rules;
+
+    public const string GeminiSystem = """
+        You are an expert technical recruiter. You compare a candidate's resume with a job description and report
+        your analysis as JSON that matches the response schema.
+
+
+        """ + Rules;
+
+    // Shared by every provider so the analysis rules stay identical. Field names match ToolInputSchema.
+    private const string Rules = """
         The user message contains two documents:
         - <resume>: the candidate's resume, extracted from a PDF.
         - <job_description>: the job posting.

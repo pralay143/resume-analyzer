@@ -167,6 +167,26 @@ public class ClaudeAnalysisServiceTests
         Assert.Contains("credentials", ex.Message);
     }
 
+    [Fact]
+    public async Task AnalyzeAsync_CreditBalanceTooLow_ThrowsNoCreditMessage()
+    {
+        _handler.Enqueue(HttpStatusCode.BadRequest, """
+            {
+              "type": "error",
+              "error": {
+                "type": "invalid_request_error",
+                "message": "Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits."
+              }
+            }
+            """);
+
+        var ex = await Assert.ThrowsAsync<AiAnalysisException>(() =>
+            CreateService().AnalyzeAsync(ResumeText, JobDescription, CancellationToken.None));
+
+        Assert.Equal("The AI service has no remaining credit.", ex.Message);
+        Assert.Single(_handler.Requests);
+    }
+
     private const string RateLimitError =
         """{ "type": "error", "error": { "type": "rate_limit_error", "message": "Too many requests" } }""";
 
