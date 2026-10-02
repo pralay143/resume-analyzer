@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using ResumeAnalyzer.Api.Data;
 using ResumeAnalyzer.Api.Middleware;
+using ResumeAnalyzer.Api.RateLimiting;
 using ResumeAnalyzer.Api.Services;
 using ResumeAnalyzer.Api.Services.Ai;
 using Scalar.AspNetCore;
@@ -27,11 +29,25 @@ builder.Services.AddCors(options =>
     options.AddPolicy(FrontendCorsPolicy, policy =>
         policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
-            .AllowAnyMethod());
+            .AllowAnyMethod()
+            .WithExposedHeaders("Location", "Retry-After"));
+});
+
+// Render (and most hosts) put the API behind a proxy. Trust the one X-Forwarded-For entry that proxy appends,
+// so rate limiting sees the real client IP. The proxy's address isn't known in advance, hence the cleared lists.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
 });
 
 builder.Services.AddSingleton<IResumeParser, PdfResumeParser>();
+builder.Services.AddSingleton<IMatchScoringService, MatchScoringService>();
+builder.Services.AddScoped<IAnalysisService, AnalysisService>();
 builder.Services.AddClaudeAnalysis();
+builder.Services.AddAnalysisRateLimiting();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddControllers();
@@ -40,6 +56,7 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
@@ -54,8 +71,13 @@ else
 
 app.UseCors(FrontendCorsPolicy);
 
+app.UseRateLimiter();
+
 app.UseAuthorization();
 
 app.MapControllers();
 
 app.Run();
+
+// Lets the integration tests reference the app with WebApplicationFactory<Program>.
+public partial class Program;
