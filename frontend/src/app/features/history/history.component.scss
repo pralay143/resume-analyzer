@@ -1,0 +1,34 @@
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.row {
+  cursor: pointer;
+}
+
+.actions {
+  width: 4rem;
+  text-align: right;
+}
+
+.empty {
+  padding: 3rem 1rem;
+  text-align: center;
+
+  > .pi {
+    font-size: 2.5rem;
+    color: var(--p-text-muted-color);
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

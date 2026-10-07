@@ -1,0 +1,56 @@
+<p-confirmDialog />
+
+<header class="page-header">
+  <h1>History</h1>
+  <p-button label="New analysis" icon="pi pi-plus" routerLink="/analyze" />
+</header>
+
+@if (loadedOnce() && totalCount() === 0) {
+  <div class="empty" data-testid="empty">
+    <i class="pi pi-history" aria-hidden="true"></i>
+    <h2>No analyses yet</h2>
+    <p>Analyze a resume against a job description to see it here.</p>
+    <p-button label="Analyze a resume" icon="pi pi-search" routerLink="/analyze" />
+  </div>
+}
+
+<!-- Kept in the DOM while empty so its lazy load still runs after a delete. -->
+<p-table
+  [hidden]="loadedOnce() && totalCount() === 0"
+  [value]="items()"
+  [lazy]="true"
+  [paginator]="true"
+  [rows]="pageSize"
+  [totalRecords]="totalCount()"
+  [loading]="loading()"
+  [rowHover]="true"
+  dataKey="id"
+  (onLazyLoad)="load($event)">
+  <ng-template pTemplate="header">
+    <tr>
+      <th>Job title</th>
+      <th>Company</th>
+      <th>Score</th>
+      <th>Date</th>
+      <th><span class="sr-only">Actions</span></th>
+    </tr>
+  </ng-template>
+
+  <ng-template pTemplate="body" let-item>
+    <tr class="row" tabindex="0" (click)="open(item)" (keydown.enter)="open(item)" data-testid="history-row">
+      <td>{{ item.jobTitle }}</td>
+      <td>{{ item.companyName ?? '—' }}</td>
+      <td><p-tag [value]="item.matchScore + '%'" [severity]="item.matchScore | scoreSeverity" /></td>
+      <td>{{ item.createdAt | date: 'mediumDate' }}</td>
+      <td class="actions">
+        <p-button
+          icon="pi pi-trash"
+          severity="danger"
+          [text]="true"
+          [rounded]="true"
+          ariaLabel="Delete analysis"
+          (onClick)="confirmDelete(item, $event)" />
+      </td>
+    </tr>
+  </ng-template>
+</p-table>

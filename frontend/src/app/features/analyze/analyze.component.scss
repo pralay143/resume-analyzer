@@ -1,0 +1,70 @@
+.intro {
+  margin-top: 0;
+  color: var(--p-text-muted-color);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+}
+
+label,
+.label {
+  font-weight: 600;
+}
+
+.optional {
+  font-weight: 400;
+  color: var(--p-text-muted-color);
+}
+
+.file-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.file-name {
+  color: var(--p-text-muted-color);
+  word-break: break-all;
+}
+
+.field-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.error {
+  color: var(--p-red-500);
+}
+
+.count {
+  margin-left: auto;
+  color: var(--p-text-muted-color);
+
+  &.over {
+    color: var(--p-red-500);
+  }
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  color: var(--p-text-muted-color);
+
+  ::ng-deep .spinner {
+    width: 2rem;
+    height: 2rem;
+  }
+}

@@ -1,0 +1,52 @@
+<h1>Dashboard</h1>
+
+@if (loading()) {
+  <div class="stat-row" data-testid="loading">
+    <p-skeleton height="7rem" />
+    <p-skeleton height="7rem" />
+  </div>
+  <p-skeleton height="18rem" />
+} @else if (failed()) {
+  <div class="empty" data-testid="load-error">
+    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+    <h2>Couldn't load your stats</h2>
+  </div>
+}
+
+@if (stats(); as s) {
+  @if (s.totalAnalyses === 0) {
+    <div class="empty" data-testid="empty">
+      <i class="pi pi-chart-bar" aria-hidden="true"></i>
+      <h2>No data yet</h2>
+      <p>Your stats appear here after your first analysis.</p>
+      <p-button label="Analyze a resume" icon="pi pi-search" routerLink="/analyze" />
+    </div>
+  } @else {
+    <div class="stat-row">
+      <p-card>
+        <p class="stat-label">Total analyses</p>
+        <p class="stat-value" data-testid="total">{{ s.totalAnalyses }}</p>
+      </p-card>
+      <p-card>
+        <p class="stat-label">Average match score</p>
+        <p class="stat-value" data-testid="average">{{ s.averageScore | number: '1.0-1' }}%</p>
+      </p-card>
+    </div>
+
+    <p-card header="Score trend" subheader="Your last {{ s.scoreTrend.length }} analyses" styleClass="chart-card">
+      <div class="chart">
+        <p-chart type="line" [data]="trendData()" [options]="trendOptions" height="100%" />
+      </div>
+    </p-card>
+
+    <p-card header="Most often missing skills" styleClass="chart-card">
+      @if (s.topMissingSkills.length > 0) {
+        <div class="chart">
+          <p-chart type="bar" [data]="missingSkillsData()" [options]="missingSkillsOptions" height="100%" />
+        </div>
+      } @else {
+        <p class="muted">No missing skills so far. Nice!</p>
+      }
+    </p-card>
+  }
+}
