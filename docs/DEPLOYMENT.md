@@ -5,7 +5,7 @@ The app runs on three free services:
 | Part | Service | URL |
 |---|---|---|
 | Database | [Neon](https://neon.tech) (PostgreSQL) | — |
-| API | [Render](https://render.com) web service (Docker) | `https://resume-analyzer-api.onrender.com` |
+| API | [Render](https://render.com) web service (Docker) | `https://resume-analyzer-api-h5qd.onrender.com` |
 | Frontend | [Vercel](https://vercel.com) | `https://<your-project>.vercel.app` |
 
 Do the steps in this order: the API needs the database URL, and the API's CORS setting needs the frontend URL.
@@ -64,9 +64,10 @@ You don't need to create tables: the API applies its migrations automatically on
 5. Click **Deploy Web Service**. The first build takes a few minutes. In the logs, look for:
    - `Applying 1 database migration(s): ..._InitialCreate`
    - `Now listening on: http://0.0.0.0:10000`
-6. Note the service URL at the top of the page. If it **isn't** exactly
-   `https://resume-analyzer-api.onrender.com`, update `apiUrl` in
-   `frontend/src/environments/environment.ts`, then commit and merge that change before step 3.
+6. Note the service URL at the top of the page. Render adds a suffix when the name is already taken
+   (this project's is `https://resume-analyzer-api-h5qd.onrender.com`). `apiUrl` in
+   `frontend/src/environments/environment.ts` must match it exactly, so if you recreate the service,
+   update that file and merge the change before step 3.
 7. Check it: open `https://<your-api>.onrender.com/api/health`. You should see
    `{"status":"ok", ..., "database":{"canConnect":true}}`.
 
