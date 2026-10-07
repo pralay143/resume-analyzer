@@ -1,0 +1,96 @@
+<p-confirmDialog />
+
+@switch (state()) {
+  @case ('loading') {
+    <div data-testid="loading">
+      <p-skeleton width="50%" height="2rem" [style]="{ marginBottom: '1rem' }" />
+      <p-skeleton height="12rem" />
+    </div>
+  }
+
+  @case ('not-found') {
+    <div class="empty" data-testid="not-found">
+      <i class="pi pi-search" aria-hidden="true"></i>
+      <h2>Analysis not found</h2>
+      <p>It may have been deleted.</p>
+      <p-button label="Back to history" icon="pi pi-arrow-left" routerLink="/history" />
+    </div>
+  }
+
+  @case ('error') {
+    <div class="empty" data-testid="load-error">
+      <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+      <h2>Couldn't load this analysis</h2>
+      <p-button label="Back to history" icon="pi pi-arrow-left" routerLink="/history" />
+    </div>
+  }
+
+  @case ('loaded') {
+    @if (analysis(); as a) {
+      <header class="page-header">
+        <div>
+          <h1 data-testid="job-title">{{ a.jobTitle }}</h1>
+          @if (a.companyName) {
+            <p class="company">{{ a.companyName }}</p>
+          }
+        </div>
+        <p-button
+          label="Delete"
+          icon="pi pi-trash"
+          severity="danger"
+          [outlined]="true"
+          [loading]="deleting()"
+          (onClick)="confirmDelete()" />
+      </header>
+
+      <div class="top">
+        <p-card styleClass="score-card">
+          <p-knob
+            [ngModel]="a.matchScore"
+            [readonly]="true"
+            [size]="160"
+            [strokeWidth]="10"
+            valueTemplate="{value}%"
+            [valueColor]="scoreColor()"
+            ariaLabel="Match score" />
+          <p class="score-label" data-testid="score">{{ a.matchScore }}% match</p>
+        </p-card>
+
+        <p-card header="Summary" styleClass="summary-card">
+          <p data-testid="summary">{{ a.summary }}</p>
+        </p-card>
+      </div>
+
+      <p-card header="Skills" styleClass="section">
+        <div class="skill-group" data-testid="matched">
+          <h3><i class="pi pi-check-circle matched" aria-hidden="true"></i> Matched</h3>
+          <app-skill-tags [skills]="a.matchedSkills" severity="success" />
+        </div>
+        <div class="skill-group" data-testid="missing-required">
+          <h3><i class="pi pi-times-circle missing" aria-hidden="true"></i> Missing required</h3>
+          <app-skill-tags [skills]="a.missingRequiredSkills" severity="danger" />
+        </div>
+        <div class="skill-group" data-testid="missing-preferred">
+          <h3><i class="pi pi-star preferred" aria-hidden="true"></i> Missing preferred</h3>
+          <app-skill-tags [skills]="a.missingPreferredSkills" severity="warn" />
+        </div>
+      </p-card>
+
+      <p-card header="Suggestions" styleClass="section">
+        <ol class="suggestions" data-testid="suggestions">
+          @for (suggestion of a.suggestions; track $index) {
+            <li>{{ suggestion }}</li>
+          }
+        </ol>
+      </p-card>
+
+      <p-panel header="Job description" [toggleable]="true" [collapsed]="true" styleClass="section">
+        <p class="job-description">{{ a.jobDescription }}</p>
+      </p-panel>
+
+      <p class="meta">
+        Analyzed {{ a.createdAt | date: 'medium' }} · {{ a.resumeFileName }} · {{ a.aiModel }}
+      </p>
+    }
+  }
+}

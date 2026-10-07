@@ -1,0 +1,90 @@
+<h1>Analyze a resume</h1>
+<p class="intro">Upload your resume and paste a job description to see how well they match.</p>
+
+<p-card>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <div class="field">
+      <span class="label">Resume (PDF, max 5 MB)</span>
+      <div class="file-row">
+        <input
+          #fileInput
+          id="resume"
+          type="file"
+          accept=".pdf,application/pdf"
+          hidden
+          (change)="onFileSelected($event)" />
+        <p-button
+          label="Choose PDF"
+          icon="pi pi-upload"
+          severity="secondary"
+          [outlined]="true"
+          [disabled]="submitting()"
+          (onClick)="fileInput.click()" />
+        <span class="file-name" data-testid="file-name">
+          @if (resume(); as file) {
+            <i class="pi pi-file-pdf" aria-hidden="true"></i> {{ file.name }}
+          } @else {
+            No file chosen
+          }
+        </span>
+      </div>
+      @if (fileError(); as error) {
+        <p-message severity="error" [text]="error" data-testid="file-error" />
+      }
+    </div>
+
+    <div class="field">
+      <label for="jobTitle">Job title</label>
+      <input pInputText id="jobTitle" formControlName="jobTitle" placeholder="Senior Angular Developer" />
+      @if (isInvalid('jobTitle')) {
+        <small class="error">
+          {{ form.controls.jobTitle.hasError('maxlength') ? 'Keep the job title under 200 characters.' : 'Enter the job title.' }}
+        </small>
+      }
+    </div>
+
+    <div class="field">
+      <label for="companyName">Company <span class="optional">(optional)</span></label>
+      <input pInputText id="companyName" formControlName="companyName" placeholder="Contoso" />
+      @if (isInvalid('companyName')) {
+        <small class="error">Keep the company name under 200 characters.</small>
+      }
+    </div>
+
+    <div class="field">
+      <label for="jobDescription">Job description</label>
+      <textarea
+        pTextarea
+        id="jobDescription"
+        formControlName="jobDescription"
+        rows="12"
+        placeholder="Paste the full job posting here"></textarea>
+      <div class="field-footer">
+        @if (isInvalid('jobDescription')) {
+          <small class="error">
+            {{ form.controls.jobDescription.hasError('maxlength') ? 'The job description is too long.' : 'Paste the job description.' }}
+          </small>
+        }
+        <small class="count" [class.over]="form.controls.jobDescription.value.length > maxJobDescriptionLength">
+          {{ form.controls.jobDescription.value.length.toLocaleString() }} / {{ maxJobDescriptionLength.toLocaleString() }}
+        </small>
+      </div>
+    </div>
+
+    <div class="actions">
+      <p-button
+        type="submit"
+        label="Analyze"
+        icon="pi pi-sparkles"
+        [loading]="submitting()"
+        [disabled]="submitting()" />
+    </div>
+
+    @if (submitting()) {
+      <div class="progress" role="status" data-testid="progress">
+        <p-progressSpinner styleClass="spinner" strokeWidth="5" />
+        <span>Analyzing your resume… this can take up to 30 seconds.</span>
+      </div>
+    }
+  </form>
+</p-card>
