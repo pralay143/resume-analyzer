@@ -1,6 +1,9 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ToastModule } from 'primeng/toast';
+
+import { WAKE_TOAST_KEY } from './core/interceptors/slow-request.interceptor';
+import { HealthService } from './core/services/health.service';
 
 @Component({
   selector: 'app-root',
@@ -28,11 +31,20 @@ import { ToastModule } from 'primeng/toast';
 
     <!-- Error toasts from the HTTP interceptor. Confirm dialogs live in the pages that use them. -->
     <p-toast position="top-right" />
+    <p-toast position="bottom-center" [key]="wakeToastKey" />
   `,
   styleUrl: './app.component.scss'
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
+  private readonly healthService = inject(HealthService);
+
   title = 'resume-analyzer-ui';
+  readonly wakeToastKey = WAKE_TOAST_KEY;
+
+  ngOnInit(): void {
+    // Starts waking a sleeping free-tier server as soon as the site opens, before the user needs it.
+    this.healthService.check().subscribe({ error: () => undefined });
+  }
 
   readonly navItems = [
     { label: 'Analyze', icon: 'pi pi-search', path: '/analyze' },
