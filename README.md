@@ -5,7 +5,7 @@
 Upload a resume and a job description to get a match score, matched and missing skills,
 and specific suggestions to improve the resume.
 
-**Live:** _coming soon_ · API: `https://resume-analyzer-api.onrender.com`
+**Live:** _coming soon_ · API: https://resume-analyzer-api-h5qd.onrender.com/api/health
 
 ## Features
 - [x] PDF resume upload, with text extraction that handles two-column layouts
