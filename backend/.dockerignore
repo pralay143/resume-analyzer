@@ -1,0 +1,16 @@
+# Build output
+**/bin/
+**/obj/
+
+# Not needed in the image
+tests/
+**/*.http
+**/*.user
+**/.vs/
+**/.vscode/
+
+# Local-only settings and secrets must never reach the image
+**/appsettings.Development.json
+**/appsettings.*.local.json
+**/.env
+**/.env.*
