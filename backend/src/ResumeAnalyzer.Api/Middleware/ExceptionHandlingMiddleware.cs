@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using ResumeAnalyzer.Api.Services;
+using ResumeAnalyzer.Api.Services.Ai;
 
 namespace ResumeAnalyzer.Api.Middleware;
 
@@ -31,7 +32,12 @@ public class ExceptionHandlingMiddleware(
             }
 
             var problem = ToProblemDetails(ex);
-            if (problem.Status >= StatusCodes.Status500InternalServerError)
+            if (ex is AiAnalysisException)
+            {
+                // The AI service already logged the provider's error; this is an upstream failure, not a bug.
+                logger.LogWarning("AI analysis failed: {Message}", ex.Message);
+            }
+            else if (problem.Status >= StatusCodes.Status500InternalServerError)
             {
                 logger.LogError(ex, "Unhandled exception processing {Method} {Path}",
                     context.Request.Method, context.Request.Path);
@@ -59,6 +65,12 @@ public class ExceptionHandlingMiddleware(
         {
             Status = StatusCodes.Status400BadRequest,
             Title = "Invalid resume file",
+            Detail = ex.Message
+        },
+        AiAnalysisException => new ProblemDetails
+        {
+            Status = StatusCodes.Status502BadGateway,
+            Title = "AI analysis failed",
             Detail = ex.Message
         },
         // Raised by Kestrel, e.g. when the request body exceeds the size limit (413).

@@ -4,3 +4,13 @@ GET {{ResumeAnalyzer.Api_HostAddress}}/api/health
 Accept: application/json
 
 ###
+
+GET {{ResumeAnalyzer.Api_HostAddress}}/api/analyses?page=1&pageSize=10
+Accept: application/json
+
+###
+
+GET {{ResumeAnalyzer.Api_HostAddress}}/api/analyses/stats
+Accept: application/json
+
+###
